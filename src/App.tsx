@@ -23,6 +23,7 @@ export default function App() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
     null
   ); // Índice de la imagen seleccionada
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   console.log("Estado inicial:", { images, selectedImageIndex });
 
@@ -127,7 +128,7 @@ export default function App() {
             const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
             canvas.toBlob(
               (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
-              "image/jpeg",
+              "image/jpg",
               imageQuality
             );
           };
@@ -135,7 +136,7 @@ export default function App() {
           const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
           canvas.toBlob(
             (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
-            "image/jpeg",
+            "image/jpg",
             imageQuality
           );
         }
@@ -146,20 +147,25 @@ export default function App() {
   const handleDownloadZip = async () => {
     if (!images.length || !logo) return;
 
-    const zipWriter = new ZipWriter(new BlobWriter("application/zip"));
-    for (const image of images) {
-      const processedImage = await addLogoToImage(image);
-      await zipWriter.add(
-        processedImage.name,
-        new BlobReader(processedImage.blob)
-      );
-    }
+    setIsProcessing(true);
+    try {
+      const zipWriter = new ZipWriter(new BlobWriter("application/zip"));
+      for (const image of images) {
+        const processedImage = await addLogoToImage(image);
+        await zipWriter.add(
+          processedImage.name,
+          new BlobReader(processedImage.blob)
+        );
+      }
 
-    const zipBlob = await zipWriter.close();
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(zipBlob);
-    link.download = "images_with_logo.zip";
-    link.click();
+      const zipBlob = await zipWriter.close();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = "images_with_logo.zip";
+      link.click();
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -442,8 +448,12 @@ export default function App() {
             </div>
           </div>
         </div>
-        <button onClick={handleDownloadZip} className="btn btn-primary w-full">
-          Descargar ZIP
+        <button
+          onClick={handleDownloadZip}
+          className={`btn btn-primary ${isProcessing ? 'animate-pulse' : ''}`}
+          disabled={isProcessing}
+        >
+          {isProcessing ? 'Procesando...' : 'Descargar ZIP'}
         </button>
       </div>
     </div>
