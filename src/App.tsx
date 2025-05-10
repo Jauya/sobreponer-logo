@@ -123,20 +123,20 @@ export default function App() {
               logoHeight
             );
 
-            // Determinar el formato original de la imagen
-            const originalFormat = imageFile.type;
-
-            // Convertir a blob con la calidad especificada
+            // Convertir a blob en formato JPG con la calidad especificada
+            const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
             canvas.toBlob(
-              (blob) => resolve({ name: imageFile.name, blob: blob! }),
-              originalFormat,
+              (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
+              "image/jpeg",
               imageQuality
             );
           };
         } else {
+          const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
           canvas.toBlob(
-            (blob) => resolve({ name: imageFile.name, blob: blob! }),
-            "image/png"
+            (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
+            "image/jpeg",
+            imageQuality
           );
         }
       };
