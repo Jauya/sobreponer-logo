@@ -55,25 +55,32 @@ export default function App() {
       const img = new Image();
       img.src = URL.createObjectURL(imageFile);
       img.onload = () => {
+        // Crear canvas con tamaño óptimo
         const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d", { alpha: false }); // Deshabilitar canal alpha para JPG
         if (!ctx) return;
+        
+        // Configurar tamaño del canvas
         canvas.width = img.width;
         canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+        
+        // Configurar el contexto para mejor rendimiento
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
+        
+        // Dibujar la imagen en el canvas
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
         if (logo) {
           const logoImg = new Image();
           logoImg.src = logo;
           logoImg.onload = () => {
-            // Calcula el ancho del logo basado en el porcentaje del ancho de la imagen
+            // Calcular dimensiones del logo
             const logoWidthFinal = img.width * (logoWidth / 100);
-
-            // Calcula el alto del logo manteniendo la proporción original
             const ratio = logoWidthFinal / logoImg.width;
             const logoHeight = logoImg.height * ratio;
 
-            // Determinar la posición del logo
+            // Determinar posición del logo
             let x = marginHorizontal;
             let y = marginVertical;
 
@@ -87,57 +94,91 @@ export default function App() {
               y = img.height - (logoHeight + marginVertical);
             }
 
-            // Calcular la posición final del fondo y el logo
-            const finalLogoX = x;
-            const finalLogoY = y;
-
-            // Siempre calcular las posiciones del fondo aunque no se use
-            const backgroundX = x - logoBackgroundPaddingHorizontal;
-            const backgroundY = y - logoBackgroundPaddingVertical;
-
-            const backgroundWidth =
-              logoWidthFinal + logoBackgroundPaddingHorizontal * 2;
-            const backgroundHeight =
-              logoHeight + logoBackgroundPaddingVertical * 2;
-
-            // Dibujar fondo del logo si está activado
+            // Si hay fondo de logo, dibujarlo
             if (showLogoBackground) {
-              // Simplificar el fillStyle a una sola línea
               const r = parseInt(logoBackgroundColor.slice(1, 3), 16);
               const g = parseInt(logoBackgroundColor.slice(3, 5), 16);
               const b = parseInt(logoBackgroundColor.slice(5, 7), 16);
+              
               ctx.fillStyle = `rgba(${r},${g},${b},${logoBackgroundOpacity})`;
               ctx.fillRect(
-                backgroundX,
-                backgroundY,
-                backgroundWidth,
-                backgroundHeight
+                x - logoBackgroundPaddingHorizontal,
+                y - logoBackgroundPaddingVertical,
+                logoWidthFinal + (logoBackgroundPaddingHorizontal * 2),
+                logoHeight + (logoBackgroundPaddingVertical * 2)
               );
             }
 
-            // Dibuja el logo en la posición especificada
-            ctx.drawImage(
-              logoImg,
-              finalLogoX,
-              finalLogoY,
-              logoWidthFinal,
-              logoHeight
-            );
+            // Dibujar el logo
+            ctx.drawImage(logoImg, x, y, logoWidthFinal, logoHeight);
 
-            // Convertir a blob en formato JPG con la calidad especificada
-            const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
+            // Convertir a JPG con calidad optimizada
+            const fileName = imageFile.name.replace(/\.[^/.]+$/, "");
+            
+            // Ajustar calidad basada en el tamaño de la imagen
+            let quality = imageQuality;
+            const maxDimension = Math.max(canvas.width, canvas.height);
+            
+            // Reducir calidad para imágenes grandes
+            if (maxDimension > 2000) {
+              quality = Math.max(0.4, quality * 0.7);
+            } else if (maxDimension > 1000) {
+              quality = Math.max(0.5, quality * 0.8);
+            }
+            
+            // Asegurar que la calidad esté en un rango razonable
+            quality = Math.max(0.3, Math.min(0.9, quality));
+            
             canvas.toBlob(
-              (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
-              "image/jpg",
-              imageQuality
+              (blob) => {
+                if (!blob) return;
+                // Si el archivo sigue siendo muy grande, intentar con menor calidad
+                if (blob.size > 1024 * 1024 * 2) { // Mayor a 2MB
+                  canvas.toBlob(
+                    (smallerBlob) => {
+                      if (!smallerBlob) return;
+                      resolve({ 
+                        name: `${fileName}.jpg`, 
+                        blob: smallerBlob 
+                      });
+                    },
+                    'image/jpeg',
+                    quality * 0.7 // Reducir calidad un 30% más
+                  );
+                } else {
+                  resolve({ 
+                    name: `${fileName}.jpg`, 
+                    blob: blob 
+                  });
+                }
+              },
+              'image/jpeg',
+              quality
             );
           };
         } else {
-          const fileName = imageFile.name.replace(/\.[^/.]+$/, ""); // Remover extensión
+          // Para imágenes sin logo, simplemente convertimos a JPG
+          const fileName = imageFile.name.replace(/\.[^/.]+$/, "");
+          
+          // Ajustar calidad basada en el tamaño de la imagen
+          let quality = imageQuality;
+          const maxDimension = Math.max(canvas.width, canvas.height);
+          
+          if (maxDimension > 2000) {
+            quality = Math.max(0.4, quality * 0.7);
+          } else if (maxDimension > 1000) {
+            quality = Math.max(0.5, quality * 0.8);
+          }
+          
+          quality = Math.max(0.3, Math.min(0.9, quality));
+          
           canvas.toBlob(
-            (blob) => resolve({ name: `${fileName}.jpg`, blob: blob! }),
-            "image/jpg",
-            imageQuality
+            (blob) => blob && resolve({ 
+              name: `${fileName}.jpg`, 
+              blob: blob 
+            }),
+            'image/jpeg',
+            quality
           );
         }
       };
